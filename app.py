@@ -6,6 +6,8 @@ import pandas as pd
 import streamlit as st
 
 BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+MODEL_DIR = BASE_DIR / "models"
 MONTHS_AZ = [
     "Yan", "Fev", "Mar", "Apr", "May", "İyn",
     "İyl", "Avq", "Sen", "Okt", "Noy", "Dek",
@@ -16,15 +18,15 @@ st.set_page_config(page_title="Sığorta ödənişlərinin hesablanması", layou
 @st.cache_resource
 def load_artifacts(version):
     return (
-        joblib.load(BASE_DIR / "insurance_model.pkl"),
-        joblib.load(BASE_DIR / "model_features.pkl"),
+        joblib.load(MODEL_DIR / "insurance_model.pkl"),
+        joblib.load(MODEL_DIR / "model_features.pkl"),
     )
 
 
 @st.cache_data
 def load_data():
     data = pd.concat(
-        [pd.read_csv(BASE_DIR / f"insurance_2016_{year}.csv")
+        [pd.read_csv(DATA_DIR / f"insurance_2016_{year}.csv")
          for year in [2025, 2026]],
         ignore_index=True,
     )
@@ -53,18 +55,19 @@ st.caption(
     "Bütün məbləğlər min AZN ilə göstərilir."
 )
 if not all(
-    (BASE_DIR / name).exists()
+    (MODEL_DIR / name).exists()
     for name in ["insurance_model.pkl", "model_features.pkl"]
 ):
     st.info(
-        "Əvvəlcə project.ipynb faylını işlədib modeli öyrədin və saxlayın."
+        "Əvvəlcə notebooks/project.ipynb faylını işlədib "
+        "modeli öyrədin və saxlayın."
     )
     st.stop()
 
 model, feature_cols = load_artifacts(
-    (BASE_DIR / "insurance_model.pkl").stat().st_mtime_ns
+    (MODEL_DIR / "insurance_model.pkl").stat().st_mtime_ns
 )
-info_path = BASE_DIR / "model_info.pkl"
+info_path = MODEL_DIR / "model_info.pkl"
 model_info = joblib.load(info_path) if info_path.exists() else {}
 data = load_data()
 left, right = st.columns([1, 1.2], gap="large")

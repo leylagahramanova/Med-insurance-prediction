@@ -148,17 +148,37 @@ Windows-da aktivləşdirmə əmri:
 .venv\Scripts\Activate.ps1
 ```
 
-Modelləri yenidən öyrətmək üçün `project.ipynb` hüceyrələrini sıra ilə işlədin. CSV və model fayllarını `app.py` ilə eyni qovluqda saxlayın.
+Modelləri yenidən öyrətmək üçün `notebooks/project.ipynb` hüceyrələrini sıra ilə işlədin. CSV faylları `data/`, model faylları isə `models/` qovluğunda saxlanılır. Notebook-u layihənin kökündən və ya `notebooks/` qovluğundan işə salmaq olar.
 
 | Fayl | Təyinat |
 | --- | --- |
-| `project.ipynb` | Təmizləmə, təhlil və model müqayisəsi |
+| `notebooks/project.ipynb` | Təmizləmə, təhlil və model müqayisəsi |
 | `app.py` | İnteraktiv tətbiq |
-| `insurance_2016_2025.csv`, `insurance_2016_2026.csv` | Təmizlənmiş məlumatlar |
-| `insurance_model.pkl` | Seçilmiş model |
-| `model_features.pkl` | Modelin giriş sütunları |
-| `model_name.pkl` | Seçilmiş modelin adı |
-| `model_info.pkl` | Təlim strategiyası və əhatəsi |
+| `data/insurance_2016_2025.csv`, `data/insurance_2016_2026.csv` | Təmizlənmiş məlumatlar |
+| `models/insurance_model.pkl` | Seçilmiş model |
+| `models/model_features.pkl` | Modelin giriş sütunları |
+| `models/model_name.pkl` | Seçilmiş modelin adı |
+| `models/model_info.pkl` | Təlim strategiyası və əhatəsi |
 | `requirements.txt` | Python asılılıqları |
 
 `.venv/`, `__pycache__/` və `.DS_Store` GitHub-a daxil edilməməlidir. Canlı tətbiq yayımlandıqda onun ünvanını repozitoriyanın **About → Website** bölməsinə əlavə edin. Məlumatları paylaşmazdan əvvəl mənbənin istifadə şərtlərini yoxlayın.
+
+## Qovluq Strukturu
+
+```text
+.
+├── app.py
+├── README.md
+├── requirements.txt
+├── .gitignore
+├── data/
+│   ├── insurance_2016_2025.csv
+│   └── insurance_2016_2026.csv
+├── models/
+│   ├── insurance_model.pkl
+│   ├── model_features.pkl
+│   ├── model_name.pkl
+│   └── model_info.pkl
+└── notebooks/
+    └── project.ipynb
+```
