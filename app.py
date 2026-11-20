@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import altair as alt
 import joblib
 import numpy as np
 import pandas as pd
@@ -74,26 +75,57 @@ left, right = st.columns([1, 1.2], gap="large")
 
 with left:
     st.subheader("Şirkət məlumatları")
-    with st.form("claims"):
-        company = st.selectbox("Şirkət", sorted(data["company"].unique()))
-        year = st.number_input(
-            "İl", min_value=2016, max_value=2100,
-            value=int(data["year"].max()), step=1,
+    company = st.selectbox("Şirkət", sorted(data["company"].unique()))
+    year = st.number_input(
+        "İl", min_value=2016, max_value=2100,
+        value=int(data["year"].max()), step=1,
+    )
+    month = st.selectbox(
+        "Ay", range(1, 13),
+        format_func=lambda value: MONTHS_AZ[value - 1],
+    )
+    selection = (company, year, month)
+    selected_period = data.loc[
+        data["company"].eq(company)
+        & data["year"].eq(year)
+        & data["month"].eq(month)
+    ]
+    reported_premiums = selected_period["premiums"].dropna()
+    if st.session_state.get("premium_selection") != selection:
+        st.session_state["premium_selection"] = selection
+        st.session_state["premium_input"] = (
+            float(reported_premiums.iloc[0])
+            if not reported_premiums.empty else None
         )
-        month = st.selectbox(
-            "Ay", range(1, 13),
-            format_func=lambda value: MONTHS_AZ[value - 1],
+    premiums = st.number_input(
+        "İlin əvvəlindən sığorta haqları (min AZN)",
+        min_value=0.0, step=100.0, key="premium_input",
+        placeholder="Müsbət məbləğ daxil edin",
+    )
+    if reported_premiums.empty:
+        st.info(
+            "Bu dövr üçün sığorta haqqı məlumatı yoxdur. "
+            "Hesablama üçün müsbət məbləğ daxil edin."
         )
-        premiums = st.number_input(
-            "İlin əvvəlindən sığorta haqları (min AZN)", min_value=0.0, step=100.0
+    else:
+        st.caption(
+            f"Faktiki sığorta haqqı: {reported_premiums.iloc[0]:,.2f} "
+            "min AZN. Sahə avtomatik doldurulub; dəyişə bilərsiniz."
         )
-        predict_clicked = st.form_submit_button(
-            "Ödənişi hesabla", type="primary", use_container_width=True
+    can_predict = premiums is not None and premiums > 0
+    if premiums is not None and premiums <= 0:
+        st.warning(
+            "Sıfır məbləğ məlumatlarda saxlanılır. Model yalnız müsbət "
+            "məbləğlərlə öyrədilib; hesablama üçün müsbət məbləğ lazımdır."
         )
+    predict_clicked = st.button(
+        "Ödənişi hesabla", type="primary", use_container_width=True,
+        disabled=not can_predict,
+    )
 
 with right:
     st.subheader("Hesablanmış sığorta ödənişləri")
-    if predict_clicked:
+    if predict_clicked and can_predict:
         history = data.loc[
             data["company"].eq(company) & data["month"].eq(month)
         ].sort_values("year")
@@ -107,41 +139,42 @@ with right:
                     f"tarixi 5–95% intervalı {low:,.2f}–{high:,.2f} "
                     "min AZN-dir. Hesablama etibarsız ola bilər."
                 )
-        if premiums == 0:
-            st.warning(
-                "Sıfır sığorta haqqı qeyri-sabit nəticə verə bilər. "
-                "Nəticədən istifadə etməzdən əvvəl faktiki sığorta haqqını yoxlayın."
-            )
         if model_info and company not in model_info["companies"]:
             st.warning("Bu şirkət seçilmiş təlim məlumatlarında olmayıb.")
         row = build_input_row(company, year, month, premiums, feature_cols)
         claims = max(0.0, float(np.expm1(model.predict(row)[0])))
-        st.metric(
-            (
-                'İlin əvvəlindən təxmin edilən ödənişlər (min '
-                'AZN)'
-            ), f"{claims:,.2f}"
-        )
+        metrics = st.columns(3)
+        metrics[0].metric("Təxmin (min AZN)", f"{claims:,.2f}")
         if not reported.empty:
-            st.metric(
-                "Seçilmiş dövrün faktiki ödənişləri (min AZN)",
-                f"{reported.iloc[0]:,.2f}",
+            actual = float(reported.iloc[0])
+            difference = claims - actual
+            metrics[1].metric("Faktiki (min AZN)", f"{actual:,.2f}")
+            metrics[2].metric("Fərq (min AZN)", f"{difference:+,.2f}")
+            st.caption(
+                "Müsbət fərq yüksək, mənfi fərq aşağı təxmin deməkdir. "
+                "Müqayisə üçün dövrün faktiki sığorta haqqını daxil edin."
             )
         else:
-            st.info("Seçilmiş dövr üçün faktiki ödəniş məlumatı yoxdur.")
-        same_month = data.loc[data["month"].eq(month)]
-        comparison = pd.Series({
-            "Təxmin edilən ödənişlər": claims,
-            "Şirkətin tarixi ortalaması": same_month.loc[
-                same_month["company"].eq(company), "claims"
-            ].mean(),
-            "Bütün şirkətlər üzrə tarixi ortalama": same_month["claims"].mean(),
-        }, name="Ödənişlər (min AZN)").dropna()
-        if not reported.empty:
-            comparison.loc["Faktiki ödənişlər (seçilmiş dövr)"] = (
-                reported.iloc[0]
+            st.info(
+                "Bu dövr üçün faktiki ödəniş yoxdur; fərq hesablanmır."
             )
-        st.bar_chart(comparison.to_frame())
+        if not reported.empty:
+            chart_data = pd.DataFrame({
+                "Göstərici": ["Təxmin edilən ödənişlər", "Faktiki ödənişlər"],
+                "Məbləğ (min AZN)": [claims, actual],
+            })
+            base = alt.Chart(chart_data).encode(
+                x=alt.X("Göstərici:N", sort=None, title=None,
+                        axis=alt.Axis(labelAngle=0)),
+                y=alt.Y("Məbləğ (min AZN):Q", title="Min AZN"),
+                color=alt.Color("Göstərici:N", legend=None),
+                tooltip=["Göstərici:N",
+                         alt.Tooltip("Məbləğ (min AZN):Q", format=",.2f")],
+            )
+            chart = base.mark_bar() + base.mark_text(dy=-8).encode(
+                text=alt.Text("Məbləğ (min AZN):Q", format=",.2f")
+            )
+            st.altair_chart(chart, width="stretch")
         with st.expander("Bu ay üzrə şirkətin tarixçəsi"):
             st.dataframe(
                 history[["year", "premiums", "claims"]].rename(columns={
@@ -151,9 +184,8 @@ with right:
                 hide_index=True,
             )
         st.caption(
-            "Tarixi ortalamalar mövcud illərin eyni ayı üzrə hesablanır. "
             "Hesablama məlum sığorta haqlarına əsaslanır; "
             "gələcək üçün proqnoz deyil."
         )
     else:
-        st.info("Fill in the company details and click Ödənişi hesabla.")
+        st.info("Məlumatları daxil edib «Ödənişi hesabla» düyməsinə basın.")
